@@ -85,8 +85,8 @@ async def on_ready():
     
     # Set bot status
     await bot.change_presence(activity=discord.Activity(
-        type=discord.ActivityType.watching, 
-        name="for Minecraft accounts"
+        type=discord.ActivityType.listening, 
+        name="For Minecraft Accounts"
     ))
 
 @bot.event
