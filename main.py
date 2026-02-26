@@ -75,8 +75,8 @@ async def on_ready():
     logger.info(f'Monitoring channel ID: {CHANNEL_ID}')
     
     await bot.change_presence(activity=discord.Activity(
-        type=discord.ActivityType.listening, 
-        name="For Minecraft Accounts"
+        type=discord.ActivityType.playing, 
+        name=".jarrr"
     ))
 
 @bot.event
