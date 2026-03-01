@@ -64,62 +64,52 @@ def parse_account_data(content):
     )
 
 async def fetch_donutsmp_stats(username):
+    """Fetch player stats from DonutSMP API using the stats endpoint"""
     headers = {"Authorization": f"Bearer {API_KEY}"}
     stats_url = f"https://api.donutsmp.com/v1/stats/{username}"
-    lookup_url = f"https://api.donutsmp.com/v1/lookup/{username}"
     
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(stats_url, headers=headers) as stats_response:
-                if stats_response.status == 200:
-                    stats_data = await stats_response.json()
-                    result = stats_data.get("result", {})
+            async with session.get(stats_url, headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    result = data.get("result", {})
                     
                     if result:
-                        playtime = result.get("playtime", "0")
-                        balance = result.get("money", "0")
-                        
-                        if playtime != "0":
-                            hours = int(playtime) // 3600
-                            minutes = (int(playtime) % 3600) // 60
+                        # Get playtime (in seconds) and format it
+                        playtime_seconds = result.get("playtime", "0")
+                        if playtime_seconds != "0":
+                            hours = int(playtime_seconds) // 3600
+                            minutes = (int(playtime_seconds) % 3600) // 60
                             playtime = f"{hours}h {minutes}m"
                         else:
                             playtime = "0h 0m"
                         
-                        if balance != "0":
-                            balance = f"${int(balance):,}"
+                        # Get balance and format it
+                        balance_str = result.get("money", "0")
+                        if balance_str != "0":
+                            balance = f"${int(balance_str):,}"
                         else:
                             balance = "$0"
                         
                         return playtime, balance, True
-            
-            async with session.get(lookup_url, headers=headers) as lookup_response:
-                if lookup_response.status == 200:
-                    lookup_data = await lookup_response.json()
-                    result = lookup_data.get("result", {})
-                    
-                    if result and result.get("username"):
-                        playtime = result.get("playtime", "0")
-                        balance = result.get("money", "0")
-                        
-                        if playtime != "0":
-                            hours = int(playtime) // 3600
-                            minutes = (int(playtime) % 3600) // 60
-                            playtime = f"{hours}h {minutes}m"
-                        else:
-                            playtime = "0h 0m"
-                        
-                        if balance != "0":
-                            balance = f"${int(balance):,}"
-                        else:
-                            balance = "$0"
-                        
-                        return playtime, balance, True
+                    else:
+                        logger.warning(f"No result data found for {username}")
+                        return None, None, False
+                elif response.status == 401:
+                    logger.error("API key is invalid or unauthorized")
+                    return None, None, False
+                elif response.status == 500:
+                    # 500 status likely means player doesn't exist
+                    logger.info(f"Player {username} does not exist (received 500 status)")
+                    return None, None, False
+                else:
+                    logger.warning(f"Unexpected response status {response.status} for {username}")
+                    return None, None, False
                     
         except Exception as e:
-            logger.error(f"Error fetching DonutSMP stats: {e}")
-    
-    return None, None, False
+            logger.error(f"Error fetching DonutSMP stats for {username}: {e}")
+            return None, None, False
 
 @bot.event
 async def on_ready():
@@ -165,16 +155,16 @@ async def on_message(message):
         
         if not valid:
             embed = discord.Embed(
-                title="Invalid Account",
-                description=f"**{username}** does not exist on DonutSMP",
-                color=0xff0000
+                title="Account Found",
+                description=f"**{username}** is not a valid DonutSMP Account",
+                color=0x333333
             )
             await output_channel.send(embed=embed)
             logger.info(f"Invalid account alert sent for {username}")
             return
         
         embed = discord.Embed(
-            title="Account Ratted",
+            title="Account Found",
             description=f"**{username}**",
             color=0x5865F2
         )
