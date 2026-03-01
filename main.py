@@ -66,7 +66,6 @@ def parse_account_data(content):
 async def fetch_donutsmp_stats(username):
     """Fetch player stats from DonutSMP API using the stats endpoint"""
     headers = {"Authorization": f"Bearer {API_KEY}"}
-    # Correct URL format from the working example
     stats_url = f"https://api.donutsmp.net/v1/stats/{username}"
     
     async with aiohttp.ClientSession() as session:
@@ -75,9 +74,28 @@ async def fetch_donutsmp_stats(username):
             async with session.get(stats_url, headers=headers) as response:
                 logger.info(f"Response status for {username}: {response.status}")
                 
+                # Get the response text first
+                response_text = await response.text()
+                logger.info(f"Response body for {username}: {response_text[:200]}")  # Log first 200 chars
+                
                 if response.status == 200:
-                    data = await response.json()
-                    stats = data.get("result", {})
+                    try:
+                        # Try to parse as JSON
+                        data = await response.json()
+                        stats = data.get("result", {})
+                    except:
+                        # If JSON parsing fails, try to parse the text response
+                        logger.info(f"Could not parse JSON, attempting to parse text response for {username}")
+                        
+                        # Check if the response indicates the player doesn't exist
+                        if "does not exist" in response_text.lower() or "not found" in response_text.lower():
+                            logger.info(f"Player {username} does not exist (from text response)")
+                            return None, None, False
+                        
+                        # If we got here, try to extract stats from text (if possible)
+                        # For now, assume the account exists but we couldn't parse stats
+                        # You might need to adjust this based on what the text response actually contains
+                        return "Unknown", "Unknown", True
                     
                     if stats:
                         # Get playtime (in seconds) and format it
