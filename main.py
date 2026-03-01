@@ -66,30 +66,40 @@ def parse_account_data(content):
 def format_playtime(seconds):
     """Convert seconds to hours and minutes"""
     try:
-        seconds_int = int(float(seconds))  # Handle if it comes as string or float
+        if seconds is None:
+            return "Unknown"
+        
+        # Convert to float first to handle various formats
+        seconds_float = float(seconds)
+        seconds_int = int(seconds_float)
+        
         if seconds_int > 0:
             hours = seconds_int // 3600
             minutes = (seconds_int % 3600) // 60
-            return f"{hours:,}h {minutes}m"  # Add commas to large numbers
-    except (ValueError, TypeError):
-        pass
-    return "0h 0m"
+            return f"{hours:,}h {minutes}m"
+        else:
+            return "0h 0m"
+    except (ValueError, TypeError) as e:
+        logger.error(f"Error formatting playtime '{seconds}': {e}")
+        return "Unknown"
 
 def format_balance(balance_str):
     """Format balance with commas, handling scientific notation"""
     try:
+        if balance_str is None:
+            return "Unknown"
+        
         # Handle scientific notation (like 8.915681500000001e+5)
-        if 'e' in str(balance_str).lower():
-            balance_float = float(balance_str)
-            balance_int = int(balance_float)
-        else:
-            balance_int = int(float(balance_str))  # Handle if it comes as string
+        balance_float = float(balance_str)
+        balance_int = int(balance_float)
         
         if balance_int > 0:
             return f"${balance_int:,}"
-    except (ValueError, TypeError):
-        pass
-    return "$0"
+        else:
+            return "$0"
+    except (ValueError, TypeError) as e:
+        logger.error(f"Error formatting balance '{balance_str}': {e}")
+        return "Unknown"
 
 async def fetch_donutsmp_stats(username):
     """Fetch player stats from DonutSMP API using the stats endpoint"""
@@ -104,41 +114,48 @@ async def fetch_donutsmp_stats(username):
                 
                 if response.status == 200:
                     data = await response.json()
-                    logger.info(f"Response data for {username}: {data}")
+                    logger.info(f"Raw response data for {username}: {data}")
                     
-                    # The stats are in the "result" object
-                    stats = data.get("result", {})
+                    # Check if data exists and has result
+                    if not data:
+                        logger.warning(f"Empty response data for {username}")
+                        return "Unknown", "Unknown", False
+                    
+                    # The stats might be in the "result" object or directly in data
+                    stats = data.get("result", data)
                     
                     if stats:
-                        # Get playtime and format it
-                        playtime_raw = stats.get("playtime", "0")
+                        # Get playtime - try different possible field names
+                        playtime_raw = stats.get("playtime") or stats.get("Playtime") or stats.get("timePlayed") or 0
+                        logger.info(f"Raw playtime for {username}: {playtime_raw}")
                         playtime = format_playtime(playtime_raw)
                         
-                        # Get balance and format it
-                        balance_raw = stats.get("money", "0")
+                        # Get balance - try different possible field names
+                        balance_raw = stats.get("money") or stats.get("Money") or stats.get("balance") or stats.get("Balance") or 0
+                        logger.info(f"Raw balance for {username}: {balance_raw}")
                         balance = format_balance(balance_raw)
                         
                         logger.info(f"Successfully fetched stats for {username}: playtime={playtime}, balance={balance}")
                         return playtime, balance, True
                     else:
                         logger.warning(f"No stats data found for {username}")
-                        return None, None, False
+                        return "Unknown", "Unknown", False
                 
                 elif response.status == 401:
                     logger.error("API key is invalid or unauthorized")
-                    return None, None, False
+                    return "Unknown", "Unknown", False
                 
                 elif response.status == 500:
                     logger.info(f"Player {username} does not exist (received 500 status)")
-                    return None, None, False
+                    return "Unknown", "Unknown", False
                 
                 else:
                     logger.warning(f"Unexpected response status {response.status} for {username}")
-                    return None, None, False
+                    return "Unknown", "Unknown", False
                     
         except Exception as e:
             logger.error(f"Error fetching DonutSMP stats for {username}: {e}")
-            return None, None, False
+            return "Unknown", "Unknown", False
 
 @bot.event
 async def on_ready():
@@ -157,7 +174,7 @@ async def on_ready():
     if output_channel:
         logger.info(f'Output channel found: #{output_channel.name}')
     else:
-        logger.error(f'Could not find output channel with ID {OUTPUT_CHANNEL_ID}')
+        logger.error(f'Could not find output channel ID {OUTPUT_CHANNEL_ID}')
     
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.playing, name=".jarrr"))
 
@@ -168,6 +185,7 @@ async def on_message(message):
     
     if message.channel.id == INPUT_CHANNEL_ID and message.webhook_id:
         logger.info(f"Webhook received in input channel #{message.channel.name}")
+        logger.info(f"Message content: {message.content}")
         
         username, session = parse_account_data(message.content)
         
@@ -175,7 +193,7 @@ async def on_message(message):
             logger.warning("Could not parse username or session from webhook")
             return
         
-        logger.info(f"Parsed username: {username}")
+        logger.info(f"Parsed username: {username}, session: {session[:20]}...")  # Log partial session
         
         playtime, balance, valid = await fetch_donutsmp_stats(username)
         
