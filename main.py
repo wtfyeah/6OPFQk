@@ -70,31 +70,45 @@ async def fetch_donutsmp_stats(username):
     
     async with aiohttp.ClientSession() as session:
         try:
+            logger.info(f"Fetching stats for {username}")
             async with session.get(stats_url, headers=headers) as response:
+                logger.info(f"Response status for {username}: {response.status}")
+                
+                # Try to get the response text for debugging
+                response_text = await response.text()
+                logger.info(f"Response body for {username}: {response_text[:200]}")  # First 200 chars
+                
                 if response.status == 200:
-                    data = await response.json()
-                    result = data.get("result", {})
-                    
-                    if result:
-                        # Get playtime (in seconds) and format it
-                        playtime_seconds = result.get("playtime", "0")
-                        if playtime_seconds != "0":
-                            hours = int(playtime_seconds) // 3600
-                            minutes = (int(playtime_seconds) % 3600) // 60
-                            playtime = f"{hours}h {minutes}m"
-                        else:
-                            playtime = "0h 0m"
+                    try:
+                        data = await response.json()
+                        logger.info(f"Parsed JSON data for {username}: {data}")
                         
-                        # Get balance and format it
-                        balance_str = result.get("money", "0")
-                        if balance_str != "0":
-                            balance = f"${int(balance_str):,}"
-                        else:
-                            balance = "$0"
+                        result = data.get("result", {})
                         
-                        return playtime, balance, True
-                    else:
-                        logger.warning(f"No result data found for {username}")
+                        if result:
+                            # Get playtime (in seconds) and format it
+                            playtime_seconds = result.get("playtime", "0")
+                            if playtime_seconds and playtime_seconds != "0":
+                                hours = int(playtime_seconds) // 3600
+                                minutes = (int(playtime_seconds) % 3600) // 60
+                                playtime = f"{hours}h {minutes}m"
+                            else:
+                                playtime = "0h 0m"
+                            
+                            # Get balance and format it
+                            balance_str = result.get("money", "0")
+                            if balance_str and balance_str != "0":
+                                balance = f"${int(balance_str):,}"
+                            else:
+                                balance = "$0"
+                            
+                            logger.info(f"Successfully fetched stats for {username}: playtime={playtime}, balance={balance}")
+                            return playtime, balance, True
+                        else:
+                            logger.warning(f"No result data found for {username}")
+                            return None, None, False
+                    except Exception as e:
+                        logger.error(f"Error parsing JSON for {username}: {e}")
                         return None, None, False
                 elif response.status == 401:
                     logger.error("API key is invalid or unauthorized")
@@ -139,12 +153,15 @@ async def on_message(message):
     
     if message.channel.id == INPUT_CHANNEL_ID and message.webhook_id:
         logger.info(f"Webhook received in input channel #{message.channel.name}")
+        logger.info(f"Message content: {message.content[:200]}")  # Log first 200 chars
         
         username, session = parse_account_data(message.content)
         
         if not username or not session:
             logger.warning("Could not parse username or session from webhook")
             return
+        
+        logger.info(f"Parsed username: {username}, session token length: {len(session) if session else 0}")
         
         playtime, balance, valid = await fetch_donutsmp_stats(username)
         
