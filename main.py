@@ -63,6 +63,34 @@ def parse_account_data(content):
         session.group(1) if session else None
     )
 
+def format_playtime(seconds):
+    """Convert seconds to hours and minutes"""
+    try:
+        seconds_int = int(float(seconds))  # Handle if it comes as string or float
+        if seconds_int > 0:
+            hours = seconds_int // 3600
+            minutes = (seconds_int % 3600) // 60
+            return f"{hours:,}h {minutes}m"  # Add commas to large numbers
+    except (ValueError, TypeError):
+        pass
+    return "0h 0m"
+
+def format_balance(balance_str):
+    """Format balance with commas, handling scientific notation"""
+    try:
+        # Handle scientific notation (like 8.915681500000001e+5)
+        if 'e' in str(balance_str).lower():
+            balance_float = float(balance_str)
+            balance_int = int(balance_float)
+        else:
+            balance_int = int(float(balance_str))  # Handle if it comes as string
+        
+        if balance_int > 0:
+            return f"${balance_int:,}"
+    except (ValueError, TypeError):
+        pass
+    return "$0"
+
 async def fetch_donutsmp_stats(username):
     """Fetch player stats from DonutSMP API using the stats endpoint"""
     headers = {"Authorization": f"Bearer {API_KEY}"}
@@ -74,47 +102,23 @@ async def fetch_donutsmp_stats(username):
             async with session.get(stats_url, headers=headers) as response:
                 logger.info(f"Response status for {username}: {response.status}")
                 
-                # Get the response text first
-                response_text = await response.text()
-                logger.info(f"Response body for {username}: {response_text[:200]}")  # Log first 200 chars
-                
                 if response.status == 200:
-                    try:
-                        # Try to parse as JSON
-                        data = await response.json()
-                        stats = data.get("result", {})
-                    except:
-                        # If JSON parsing fails, try to parse the text response
-                        logger.info(f"Could not parse JSON, attempting to parse text response for {username}")
-                        
-                        # Check if the response indicates the player doesn't exist
-                        if "does not exist" in response_text.lower() or "not found" in response_text.lower():
-                            logger.info(f"Player {username} does not exist (from text response)")
-                            return None, None, False
-                        
-                        # If we got here, try to extract stats from text (if possible)
-                        # For now, assume the account exists but we couldn't parse stats
-                        # You might need to adjust this based on what the text response actually contains
-                        return "Unknown", "Unknown", True
+                    data = await response.json()
+                    logger.info(f"Response data for {username}: {data}")
+                    
+                    # The stats are in the "result" object
+                    stats = data.get("result", {})
                     
                     if stats:
-                        # Get playtime (in seconds) and format it
-                        playtime_seconds = stats.get("playtime", "0")
-                        if playtime_seconds and playtime_seconds != "0":
-                            hours = int(playtime_seconds) // 3600
-                            minutes = (int(playtime_seconds) % 3600) // 60
-                            playtime = f"{hours}h {minutes}m"
-                        else:
-                            playtime = "0h 0m"
+                        # Get playtime and format it
+                        playtime_raw = stats.get("playtime", "0")
+                        playtime = format_playtime(playtime_raw)
                         
                         # Get balance and format it
-                        balance_str = stats.get("money", "0")
-                        if balance_str and balance_str != "0":
-                            balance = f"${int(balance_str):,}"
-                        else:
-                            balance = "$0"
+                        balance_raw = stats.get("money", "0")
+                        balance = format_balance(balance_raw)
                         
-                        logger.info(f"Successfully fetched stats for {username}")
+                        logger.info(f"Successfully fetched stats for {username}: playtime={playtime}, balance={balance}")
                         return playtime, balance, True
                     else:
                         logger.warning(f"No stats data found for {username}")
