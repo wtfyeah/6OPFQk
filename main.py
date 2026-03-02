@@ -66,20 +66,23 @@ def parse_account_data(content):
 def format_playtime(seconds):
     try:
         if seconds is None:
-            return "0h 0m"
+            return "0d 0h"
         seconds_int = int(float(seconds))
         if seconds_int > 0:
-            hours = seconds_int // 3600
-            minutes = (seconds_int % 3600) // 60
-            return f"{hours:,}h {minutes}m"
+            days = seconds_int // 86400
+            hours = (seconds_int % 86400) // 3600
+            if days > 0:
+                return f"{days}d {hours}h"
+            else:
+                return f"{hours}h"
     except (ValueError, TypeError):
         pass
-    return "0h 0m"
+    return "0d 0h"
 
 def format_balance(balance_str):
     try:
         if balance_str is None:
-            return "$0"
+            return "0"
             
         if 'e' in str(balance_str).lower():
             balance_float = float(balance_str)
@@ -87,35 +90,35 @@ def format_balance(balance_str):
             balance_float = float(balance_str)
             
         if balance_float <= 0:
-            return "$0"
+            return "0"
             
         if balance_float >= 1_000_000_000_000:
             value = balance_float / 1_000_000_000_000
-            formatted = f"{value:.2f}".rstrip('0').rstrip('.') if '.' in f"{value:.2f}" else f"{value:.2f}"
-            return f"${formatted}t"
+            formatted = f"{value:.1f}".rstrip('0').rstrip('.') if '.' in f"{value:.1f}" else f"{value:.1f}"
+            return f"{formatted}t"
             
         elif balance_float >= 1_000_000_000:
             value = balance_float / 1_000_000_000
             formatted = f"{value:.1f}".rstrip('0').rstrip('.') if '.' in f"{value:.1f}" else f"{value:.1f}"
-            return f"${formatted}b"
+            return f"{formatted}b"
             
         elif balance_float >= 1_000_000:
             value = balance_float / 1_000_000
             formatted = f"{value:.1f}".rstrip('0').rstrip('.') if '.' in f"{value:.1f}" else f"{value:.1f}"
-            return f"${formatted}m"
+            return f"{formatted}m"
             
         elif balance_float >= 1_000:
             value = balance_float / 1_000
             formatted = str(int(round(value)))
-            return f"${formatted}k"
+            return f"{formatted}k"
             
         else:
             formatted = str(int(round(balance_float)))
-            return f"${formatted}"
+            return formatted
             
     except (ValueError, TypeError) as e:
         logger.error(f"Error formatting balance '{balance_str}': {e}")
-        return "$0"
+        return "0"
 
 async def fetch_donutsmp_stats(username):
     headers = {"Authorization": f"Bearer {API_KEY}"}
@@ -135,11 +138,11 @@ async def fetch_donutsmp_stats(username):
                         data = await response.json(content_type=None)
                     except Exception as e:
                         logger.error(f"Failed to parse JSON for {username}: {e}, raw: {raw_text}")
-                        return "0h 0m", "$0", False
+                        return "0d 0h", "0", False
                     
                     if data.get("status") != 200 and data.get("status") != 0:
                         logger.warning(f"API returned non-success status for {username}: {data.get('status')}")
-                        return "0h 0m", "$0", False
+                        return "0d 0h", "0", False
                     
                     stats = data.get("result")
                     if stats and isinstance(stats, dict):
@@ -149,24 +152,24 @@ async def fetch_donutsmp_stats(username):
                         return playtime, balance, True
                     else:
                         logger.warning(f"No 'result' dict in response for {username}: {data}")
-                        return "0h 0m", "$0", False
+                        return "0d 0h", "0", False
 
                 elif response.status == 401:
                     logger.error(f"Unauthorized - check your API key! Response: {raw_text}")
-                    return "0h 0m", "$0", False
+                    return "0d 0h", "0", False
                 elif response.status == 500:
                     logger.info(f"Player {username} does not exist on DonutSMP (500 response)")
-                    return "0h 0m", "$0", False
+                    return "0d 0h", "0", False
                 else:
                     logger.warning(f"Unexpected status {response.status} for {username}: {raw_text}")
-                    return "0h 0m", "$0", False
+                    return "0d 0h", "0", False
                     
         except aiohttp.ClientError as e:
             logger.error(f"Network error fetching DonutSMP stats for {username}: {e}")
-            return "0h 0m", "$0", False
+            return "0d 0h", "0", False
         except Exception as e:
             logger.error(f"Unexpected error fetching DonutSMP stats for {username}: {e}", exc_info=True)
-            return "0h 0m", "$0", False
+            return "0d 0h", "0", False
 
 @bot.event
 async def on_ready():
