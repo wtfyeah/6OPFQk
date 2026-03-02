@@ -66,11 +66,18 @@ def parse_account_data(content):
 def format_playtime(ms):
     try:
         if ms is None:
-            return "0d 0h"
+            return "None"
         
         seconds_int = int(float(ms)) // 1000
         
-        if seconds_int > 0:
+        if seconds_int <= 0:
+            return "None"
+        elif seconds_int < 60:
+            return f"{seconds_int}s"
+        elif seconds_int < 3600:
+            minutes = seconds_int // 60
+            return f"{minutes}m"
+        else:
             days = seconds_int // 86400
             hours = (seconds_int % 86400) // 3600
             if days > 0:
@@ -79,7 +86,7 @@ def format_playtime(ms):
                 return f"{hours}h"
     except (ValueError, TypeError):
         pass
-    return "0d 0h"
+    return "None"
 
 def format_balance(balance_str):
     try:
@@ -140,11 +147,11 @@ async def fetch_donutsmp_stats(username):
                         data = await response.json(content_type=None)
                     except Exception as e:
                         logger.error(f"Failed to parse JSON for {username}: {e}, raw: {raw_text}")
-                        return "0d 0h", "0", False
+                        return "None", "0", False
                     
                     if data.get("status") != 200 and data.get("status") != 0:
                         logger.warning(f"API returned non-success status for {username}: {data.get('status')}")
-                        return "0d 0h", "0", False
+                        return "None", "0", False
                     
                     stats = data.get("result")
                     if stats and isinstance(stats, dict):
@@ -154,24 +161,24 @@ async def fetch_donutsmp_stats(username):
                         return playtime, balance, True
                     else:
                         logger.warning(f"No 'result' dict in response for {username}: {data}")
-                        return "0d 0h", "0", False
+                        return "None", "0", False
 
                 elif response.status == 401:
                     logger.error(f"Unauthorized - check your API key! Response: {raw_text}")
-                    return "0d 0h", "0", False
+                    return "None", "0", False
                 elif response.status == 500:
                     logger.info(f"Player {username} does not exist on DonutSMP (500 response)")
-                    return "0d 0h", "0", False
+                    return "None", "0", False
                 else:
                     logger.warning(f"Unexpected status {response.status} for {username}: {raw_text}")
-                    return "0d 0h", "0", False
+                    return "None", "0", False
                     
         except aiohttp.ClientError as e:
             logger.error(f"Network error fetching DonutSMP stats for {username}: {e}")
-            return "0d 0h", "0", False
+            return "None", "0", False
         except Exception as e:
             logger.error(f"Unexpected error fetching DonutSMP stats for {username}: {e}", exc_info=True)
-            return "0d 0h", "0", False
+            return "None", "0", False
 
 @bot.event
 async def on_ready():
@@ -221,7 +228,7 @@ async def on_message(message):
             embed = discord.Embed(
                 title=username,
                 description="Account does not exist on DonutSMP",
-                color=0x333333
+                color=0x141414
             )
             embed.set_thumbnail(url=head_url)
             await output_channel.send(embed=embed)
@@ -230,7 +237,7 @@ async def on_message(message):
         
         embed = discord.Embed(
             title=username,
-            color=0x646464
+            color=0x141414
         )
         embed.add_field(name="Balance", value=balance, inline=True)
         embed.add_field(name="Playtime", value=playtime, inline=True)
@@ -246,13 +253,13 @@ async def on_message(message):
 async def lookup(ctx, username: str):
     async with ctx.typing():
         playtime, balance, valid = await fetch_donutsmp_stats(username)
-        head_url = f"https://mc-heads.net/body/{username}"
+        head_url = f"https://mc-heads.net/body/{username}/500"
         
         if not valid:
             embed = discord.Embed(
                 title=username,
                 description="Account does not exist on DonutSMP",
-                color=0x646464
+                color=0x141414
             )
             embed.set_thumbnail(url=head_url)
             await ctx.send(embed=embed)
@@ -260,7 +267,7 @@ async def lookup(ctx, username: str):
         
         embed = discord.Embed(
             title=username,
-            color=0x646464
+            color=0x141414
         )
         embed.add_field(name="Balance", value=balance, inline=True)
         embed.add_field(name="Playtime", value=playtime, inline=True)
