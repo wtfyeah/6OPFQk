@@ -64,7 +64,6 @@ def parse_account_data(content):
     )
 
 def format_playtime(seconds):
-    """Convert seconds to hours and minutes"""
     try:
         if seconds is None:
             return "0h 0m"
@@ -78,22 +77,47 @@ def format_playtime(seconds):
     return "0h 0m"
 
 def format_balance(balance_str):
-    """Format balance with commas, handling scientific notation"""
     try:
         if balance_str is None:
             return "$0"
+            
         if 'e' in str(balance_str).lower():
-            balance_int = int(float(balance_str))
+            balance_float = float(balance_str)
         else:
-            balance_int = int(float(balance_str))
-        if balance_int > 0:
-            return f"${balance_int:,}"
-    except (ValueError, TypeError):
-        pass
-    return "$0"
+            balance_float = float(balance_str)
+            
+        if balance_float <= 0:
+            return "$0"
+            
+        if balance_float >= 1_000_000_000_000:
+            value = balance_float / 1_000_000_000_000
+            formatted = f"{value:.2f}".rstrip('0').rstrip('.') if '.' in f"{value:.2f}" else f"{value:.2f}"
+            return f"${formatted}t"
+            
+        elif balance_float >= 1_000_000_000:
+            value = balance_float / 1_000_000_000
+            formatted = f"{value:.1f}".rstrip('0').rstrip('.') if '.' in f"{value:.1f}" else f"{value:.1f}"
+            return f"${formatted}b"
+            
+        elif balance_float >= 1_000_000:
+            value = balance_float / 1_000_000
+            formatted = f"{value:.1f}".rstrip('0').rstrip('.') if '.' in f"{value:.1f}" else f"{value:.1f}"
+            return f"${formatted}m"
+            
+        elif balance_float >= 1_000:
+            value = balance_float / 1_000
+            formatted = str(int(round(value)))
+            return f"${formatted}k"
+            
+        else:
+            formatted = str(int(round(balance_float)))
+            return f"${formatted}"
+            
+    except (ValueError, TypeError) as e:
+        logger.error(f"Error formatting balance '{balance_str}': {e}")
+        return "$0"
 
 async def fetch_donutsmp_stats(username):
-    """Fetch player stats from DonutSMP API"""
     headers = {"Authorization": f"Bearer {API_KEY}"}
     stats_url = f"https://api.donutsmp.net/v1/stats/{username}"
     
@@ -215,7 +239,6 @@ async def on_message(message):
 
 @bot.command(name='lookup')
 async def lookup(ctx, username: str):
-    """Lookup a player's DonutSMP stats"""
     async with ctx.typing():
         playtime, balance, valid = await fetch_donutsmp_stats(username)
         head_url = f"https://mc-heads.net/body/{username}"
