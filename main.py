@@ -104,36 +104,58 @@ async def fetch_donutsmp_stats(username):
     
     async with aiohttp.ClientSession() as session:
         try:
-            logger.info(f"Fetching stats for {username}")
+            logger.info(f"Fetching stats for {username} from {stats_url}")
             async with session.get(stats_url, headers=headers) as response:
                 logger.info(f"Response status for {username}: {response.status}")
                 
-                # Check if response is successful
+                raw_text = await response.text()
+                logger.info(f"Raw response for {username}: {raw_text}")
+                
                 if response.status == 200:
-                    data = await response.json()
-                    logger.info(f"Response data for {username}: {data}")
+                    try:
+                        data = await response.json(content_type=None)
+                    except Exception as e:
+                        logger.error(f"Failed to parse JSON for {username}: {e}, raw: {raw_text}")
+                        return "0h 0m", "$0", False
                     
-                    # The stats are in the "result" object
+                    logger.info(f"Parsed response data for {username}: {data}")
+                    
+                    if data.get("status") != 200 and data.get("status") != 0:
+                        logger.warning(f"API returned non-success status in body for {username}: {data.get('status')}")
+                        return "0h 0m", "$0", False
+                    
                     stats = data.get("result")
                     
                     if stats and isinstance(stats, dict):
-                        # Get playtime and format it
-                        playtime_raw = stats.get("playtime", 0)
+                        playtime_raw = stats.get("playtime", "0")
                         playtime = format_playtime(playtime_raw)
                         
-                        # Get balance and format it
-                        balance_raw = stats.get("money", 0)
+                        balance_raw = stats.get("money", "0")
                         balance = format_balance(balance_raw)
                         
                         logger.info(f"Successfully fetched stats for {username}: playtime={playtime}, balance={balance}")
                         return playtime, balance, True
-                
-                # If we get here, the user doesn't exist or there was an error
-                logger.info(f"Player {username} does not exist or has no stats")
-                return "0h 0m", "$0", False
+                    else:
+                        logger.warning(f"No 'result' dict in response for {username}: {data}")
+                        return "0h 0m", "$0", False
+
+                elif response.status == 401:
+                    logger.error(f"Unauthorized - check your API key! Response: {raw_text}")
+                    return "0h 0m", "$0", False
                     
+                elif response.status == 500:
+                    logger.info(f"Player {username} does not exist on DonutSMP (500 response)")
+                    return "0h 0m", "$0", False
+                
+                else:
+                    logger.warning(f"Unexpected status {response.status} for {username}: {raw_text}")
+                    return "0h 0m", "$0", False
+                    
+        except aiohttp.ClientError as e:
+            logger.error(f"Network error fetching DonutSMP stats for {username}: {e}")
+            return "0h 0m", "$0", False
         except Exception as e:
-            logger.error(f"Error fetching DonutSMP stats for {username}: {e}")
+            logger.error(f"Unexpected error fetching DonutSMP stats for {username}: {e}", exc_info=True)
             return "0h 0m", "$0", False
 
 @bot.event
