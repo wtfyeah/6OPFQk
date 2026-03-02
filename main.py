@@ -92,24 +92,6 @@ def format_balance(balance_str):
         pass
     return "$0"
 
-async def fetch_uuid(username):
-    """Fetch Mojang UUID from username"""
-    url = f"https://api.mojang.com/users/profiles/minecraft/{username}"
-    async with aiohttp.ClientSession() as session:
-        try:
-            logger.info(f"Fetching UUID for {username}")
-            async with session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    uuid = data.get("id")
-                    logger.info(f"Found UUID for {username}: {uuid}")
-                    return uuid
-                else:
-                    logger.warning(f"Could not find UUID for {username}, status: {response.status}")
-        except Exception as e:
-            logger.error(f"Error fetching UUID for {username}: {e}")
-    return None
-
 async def fetch_donutsmp_stats(username):
     """Fetch player stats from DonutSMP API"""
     headers = {"Authorization": f"Bearer {API_KEY}"}
@@ -198,12 +180,8 @@ async def on_message(message):
         
         logger.info(f"Parsed username: {username}")
         
-        # Fetch stats and UUID concurrently
-        (playtime, balance, valid), uuid = await asyncio.gather(
-            fetch_donutsmp_stats(username),
-            fetch_uuid(username)
-        )
-        head_url = f"https://crafatar.com/renders/head/{uuid}?scale=10&overlay" if uuid else None
+        playtime, balance, valid = await fetch_donutsmp_stats(username)
+        head_url = f"https://mc-heads.net/body/{username}"
         
         output_channel = bot.get_channel(OUTPUT_CHANNEL_ID)
         if not output_channel:
@@ -216,8 +194,7 @@ async def on_message(message):
                 description="Account does not exist on DonutSMP",
                 color=0x333333
             )
-            if head_url:
-                embed.set_thumbnail(url=head_url)
+            embed.set_thumbnail(url=head_url)
             await output_channel.send(embed=embed)
             logger.info(f"Invalid account alert sent for {username}")
             return
@@ -228,8 +205,7 @@ async def on_message(message):
         )
         embed.add_field(name="Balance", value=balance, inline=True)
         embed.add_field(name="Playtime", value=playtime, inline=True)
-        if head_url:
-            embed.set_thumbnail(url=head_url)
+        embed.set_thumbnail(url=head_url)
         
         view = AccountView(username, session, playtime, balance)
         await output_channel.send(embed=embed, view=view)
@@ -241,11 +217,8 @@ async def on_message(message):
 async def lookup(ctx, username: str):
     """Lookup a player's DonutSMP stats"""
     async with ctx.typing():
-        (playtime, balance, valid), uuid = await asyncio.gather(
-            fetch_donutsmp_stats(username),
-            fetch_uuid(username)
-        )
-        head_url = f"https://crafatar.com/renders/head/{uuid}?scale=10&overlay" if uuid else None
+        playtime, balance, valid = await fetch_donutsmp_stats(username)
+        head_url = f"https://mc-heads.net/body/{username}"
         
         if not valid:
             embed = discord.Embed(
@@ -253,8 +226,7 @@ async def lookup(ctx, username: str):
                 description="Account does not exist on DonutSMP",
                 color=0xff0000
             )
-            if head_url:
-                embed.set_thumbnail(url=head_url)
+            embed.set_thumbnail(url=head_url)
             await ctx.send(embed=embed)
             return
         
@@ -264,8 +236,7 @@ async def lookup(ctx, username: str):
         )
         embed.add_field(name="Balance", value=balance, inline=True)
         embed.add_field(name="Playtime", value=playtime, inline=True)
-        if head_url:
-            embed.set_thumbnail(url=head_url)
+        embed.set_thumbnail(url=head_url)
         
         await ctx.send(embed=embed)
 
