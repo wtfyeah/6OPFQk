@@ -203,7 +203,7 @@ async def on_message(message):
             return
         
         if not valid:
-           embed = discord.Embed(
+            embed = discord.Embed(
                 title=username,
                 description="Account does not exist on DonutSMP",
                 color=0x333333
