@@ -203,9 +203,9 @@ async def on_message(message):
             return
         
         if not valid:
-            embed = discord.Embed(
-                title="Account Found",
-                description=f"**{username}** is not a valid DonutSMP Account",
+           embed = discord.Embed(
+                title=username,
+                description="Account does not exist on DonutSMP",
                 color=0x333333
             )
             await output_channel.send(embed=embed)
@@ -213,12 +213,12 @@ async def on_message(message):
             return
         
         embed = discord.Embed(
-            title="Account Found",
-            description=f"**{username}**",
+            title=username,
+            description="",
             color=0x5865F2
         )
-        embed.add_field(name="Playtime", value=playtime, inline=True)
         embed.add_field(name="Balance", value=balance, inline=True)
+        embed.add_field(name="Playtime", value=playtime, inline=True)
         
         view = AccountView(username, session, playtime, balance)
         await output_channel.send(embed=embed, view=view)
@@ -234,19 +234,19 @@ async def lookup(ctx, username: str):
         
         if not valid:
             embed = discord.Embed(
-                title="Invalid Account",
-                description=f"**{username}** does not exist on DonutSMP",
+                title=username,
+                description="Account does not exist on DonutSMP",
                 color=0xff0000
             )
             await ctx.send(embed=embed)
             return
         
         embed = discord.Embed(
-            title=f"DonutSMP Stats - {username}",
+            title=username,
             color=0x5865F2
         )
-        embed.add_field(name="Playtime", value=playtime, inline=True)
         embed.add_field(name="Balance", value=balance, inline=True)
+        embed.add_field(name="Playtime", value=playtime, inline=True)
         
         await ctx.send(embed=embed)
 
