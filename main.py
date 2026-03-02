@@ -63,11 +63,13 @@ def parse_account_data(content):
         session.group(1) if session else None
     )
 
-def format_playtime(seconds):
+def format_playtime(ms):
     try:
-        if seconds is None:
+        if ms is None:
             return "0d 0h"
-        seconds_int = int(float(seconds))
+        
+        seconds_int = int(float(ms)) // 1000
+        
         if seconds_int > 0:
             days = seconds_int // 86400
             hours = (seconds_int % 86400) // 3600
