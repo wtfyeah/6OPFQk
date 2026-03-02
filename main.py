@@ -210,7 +210,7 @@ async def on_message(message):
         logger.info(f"Parsed username: {username}")
         
         playtime, balance, valid = await fetch_donutsmp_stats(username)
-        head_url = f"https://mc-heads.net/body/{username}"
+        head_url = f"https://mc-heads.net/body/{username}/500"
         
         output_channel = bot.get_channel(OUTPUT_CHANNEL_ID)
         if not output_channel:
@@ -230,7 +230,7 @@ async def on_message(message):
         
         embed = discord.Embed(
             title=username,
-            color=0x5865F2
+            color=0x646464
         )
         embed.add_field(name="Balance", value=balance, inline=True)
         embed.add_field(name="Playtime", value=playtime, inline=True)
@@ -252,7 +252,7 @@ async def lookup(ctx, username: str):
             embed = discord.Embed(
                 title=username,
                 description="Account does not exist on DonutSMP",
-                color=0xff0000
+                color=0x646464
             )
             embed.set_thumbnail(url=head_url)
             await ctx.send(embed=embed)
@@ -260,7 +260,7 @@ async def lookup(ctx, username: str):
         
         embed = discord.Embed(
             title=username,
-            color=0x5865F2
+            color=0x646464
         )
         embed.add_field(name="Balance", value=balance, inline=True)
         embed.add_field(name="Playtime", value=playtime, inline=True)
