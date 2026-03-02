@@ -68,7 +68,6 @@ def format_playtime(seconds):
     try:
         if seconds is None:
             return "0h 0m"
-        
         seconds_int = int(float(seconds))
         if seconds_int > 0:
             hours = seconds_int // 3600
@@ -83,22 +82,36 @@ def format_balance(balance_str):
     try:
         if balance_str is None:
             return "$0"
-        
-        # Handle scientific notation (like 8.915681500000001e+5)
         if 'e' in str(balance_str).lower():
-            balance_float = float(balance_str)
-            balance_int = int(balance_float)
+            balance_int = int(float(balance_str))
         else:
             balance_int = int(float(balance_str))
-        
         if balance_int > 0:
             return f"${balance_int:,}"
     except (ValueError, TypeError):
         pass
     return "$0"
 
+async def fetch_uuid(username):
+    """Fetch Mojang UUID from username"""
+    url = f"https://api.mojang.com/users/profiles/minecraft/{username}"
+    async with aiohttp.ClientSession() as session:
+        try:
+            logger.info(f"Fetching UUID for {username}")
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    uuid = data.get("id")
+                    logger.info(f"Found UUID for {username}: {uuid}")
+                    return uuid
+                else:
+                    logger.warning(f"Could not find UUID for {username}, status: {response.status}")
+        except Exception as e:
+            logger.error(f"Error fetching UUID for {username}: {e}")
+    return None
+
 async def fetch_donutsmp_stats(username):
-    """Fetch player stats from DonutSMP API using the stats endpoint"""
+    """Fetch player stats from DonutSMP API"""
     headers = {"Authorization": f"Bearer {API_KEY}"}
     stats_url = f"https://api.donutsmp.net/v1/stats/{username}"
     
@@ -118,21 +131,14 @@ async def fetch_donutsmp_stats(username):
                         logger.error(f"Failed to parse JSON for {username}: {e}, raw: {raw_text}")
                         return "0h 0m", "$0", False
                     
-                    logger.info(f"Parsed response data for {username}: {data}")
-                    
                     if data.get("status") != 200 and data.get("status") != 0:
-                        logger.warning(f"API returned non-success status in body for {username}: {data.get('status')}")
+                        logger.warning(f"API returned non-success status for {username}: {data.get('status')}")
                         return "0h 0m", "$0", False
                     
                     stats = data.get("result")
-                    
                     if stats and isinstance(stats, dict):
-                        playtime_raw = stats.get("playtime", "0")
-                        playtime = format_playtime(playtime_raw)
-                        
-                        balance_raw = stats.get("money", "0")
-                        balance = format_balance(balance_raw)
-                        
+                        playtime = format_playtime(stats.get("playtime", "0"))
+                        balance = format_balance(stats.get("money", "0"))
                         logger.info(f"Successfully fetched stats for {username}: playtime={playtime}, balance={balance}")
                         return playtime, balance, True
                     else:
@@ -142,11 +148,9 @@ async def fetch_donutsmp_stats(username):
                 elif response.status == 401:
                     logger.error(f"Unauthorized - check your API key! Response: {raw_text}")
                     return "0h 0m", "$0", False
-                    
                 elif response.status == 500:
                     logger.info(f"Player {username} does not exist on DonutSMP (500 response)")
                     return "0h 0m", "$0", False
-                
                 else:
                     logger.warning(f"Unexpected status {response.status} for {username}: {raw_text}")
                     return "0h 0m", "$0", False
@@ -171,7 +175,6 @@ async def on_ready():
         logger.info(f'Input channel found: #{input_channel.name}')
     else:
         logger.error(f'Could not find input channel with ID {INPUT_CHANNEL_ID}')
-    
     if output_channel:
         logger.info(f'Output channel found: #{output_channel.name}')
     else:
@@ -195,7 +198,12 @@ async def on_message(message):
         
         logger.info(f"Parsed username: {username}")
         
-        playtime, balance, valid = await fetch_donutsmp_stats(username)
+        # Fetch stats and UUID concurrently
+        (playtime, balance, valid), uuid = await asyncio.gather(
+            fetch_donutsmp_stats(username),
+            fetch_uuid(username)
+        )
+        head_url = f"https://crafatar.com/renders/head/{uuid}?scale=10&overlay" if uuid else None
         
         output_channel = bot.get_channel(OUTPUT_CHANNEL_ID)
         if not output_channel:
@@ -208,17 +216,20 @@ async def on_message(message):
                 description="Account does not exist on DonutSMP",
                 color=0x333333
             )
+            if head_url:
+                embed.set_thumbnail(url=head_url)
             await output_channel.send(embed=embed)
             logger.info(f"Invalid account alert sent for {username}")
             return
         
         embed = discord.Embed(
             title=username,
-            description="",
             color=0x5865F2
         )
         embed.add_field(name="Balance", value=balance, inline=True)
         embed.add_field(name="Playtime", value=playtime, inline=True)
+        if head_url:
+            embed.set_thumbnail(url=head_url)
         
         view = AccountView(username, session, playtime, balance)
         await output_channel.send(embed=embed, view=view)
@@ -230,7 +241,11 @@ async def on_message(message):
 async def lookup(ctx, username: str):
     """Lookup a player's DonutSMP stats"""
     async with ctx.typing():
-        playtime, balance, valid = await fetch_donutsmp_stats(username)
+        (playtime, balance, valid), uuid = await asyncio.gather(
+            fetch_donutsmp_stats(username),
+            fetch_uuid(username)
+        )
+        head_url = f"https://crafatar.com/renders/head/{uuid}?scale=10&overlay" if uuid else None
         
         if not valid:
             embed = discord.Embed(
@@ -238,6 +253,8 @@ async def lookup(ctx, username: str):
                 description="Account does not exist on DonutSMP",
                 color=0xff0000
             )
+            if head_url:
+                embed.set_thumbnail(url=head_url)
             await ctx.send(embed=embed)
             return
         
@@ -247,6 +264,8 @@ async def lookup(ctx, username: str):
         )
         embed.add_field(name="Balance", value=balance, inline=True)
         embed.add_field(name="Playtime", value=playtime, inline=True)
+        if head_url:
+            embed.set_thumbnail(url=head_url)
         
         await ctx.send(embed=embed)
 
@@ -270,12 +289,10 @@ async def start_webserver():
     app = web.Application()
     app.router.add_get('/', health_check)
     app.router.add_get('/health', health_check)
-    
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', PORT)
     await site.start()
-    
     logger.info(f"Health check server running on port {PORT}")
 
 async def main():
