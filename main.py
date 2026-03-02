@@ -224,20 +224,28 @@ async def on_message(message):
             logger.error(f"Could not find output channel {OUTPUT_CHANNEL_ID}")
             return
         
-        if not valid:
+        # Check if session is N/A or if account is invalid
+        session_invalid = session.upper() == "N/A"
+        
+        if not valid or session_invalid:
+            # Lightly saturated red for errors or N/A sessions
+            embed_color = 0xff6666  # Light red
+            description = "Account does not exist on DonutSMP" if not valid else "Session token is N/A"
+            
             embed = discord.Embed(
                 title=username,
-                description="Account does not exist on DonutSMP",
-                color=0x141414
+                description=description,
+                color=embed_color
             )
             embed.set_thumbnail(url=head_url)
             await output_channel.send(embed=embed)
-            logger.info(f"Invalid account alert sent for {username}")
+            logger.info(f"Invalid account alert sent for {username} - Reason: {'Invalid account' if not valid else 'N/A session'}")
             return
         
+        # Regular Discord blue/purple for valid accounts
         embed = discord.Embed(
             title=username,
-            color=0x141414
+            color=0x5865F2  # Discord blurple
         )
         embed.add_field(name="Balance", value=balance, inline=True)
         embed.add_field(name="Playtime", value=playtime, inline=True)
@@ -259,7 +267,7 @@ async def lookup(ctx, username: str):
             embed = discord.Embed(
                 title=username,
                 description="Account does not exist on DonutSMP",
-                color=0x141414
+                color=0xff6666  # Light red
             )
             embed.set_thumbnail(url=head_url)
             await ctx.send(embed=embed)
@@ -267,7 +275,7 @@ async def lookup(ctx, username: str):
         
         embed = discord.Embed(
             title=username,
-            color=0x141414
+            color=0x5865F2  # Discord blurple
         )
         embed.add_field(name="Balance", value=balance, inline=True)
         embed.add_field(name="Playtime", value=playtime, inline=True)
