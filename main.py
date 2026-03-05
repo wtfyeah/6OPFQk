@@ -180,6 +180,15 @@ async def fetch_donutsmp_stats(username):
             logger.error(f"Unexpected error fetching DonutSMP stats for {username}: {e}", exc_info=True)
             return "None", "0", False
 
+async def is_duplicate_username(channel, username):
+    """Check if a username already exists in the channel's embed history."""
+    async for message in channel.history(limit=None):
+        if message.embeds:
+            for embed in message.embeds:
+                if embed.title and embed.title.lower() == username.lower():
+                    return True
+    return False
+
 @bot.event
 async def on_ready():
     logger.info(f'{bot.user} has connected to Discord!')
@@ -216,6 +225,15 @@ async def on_message(message):
         
         logger.info(f"Parsed username: {username}")
         
+        # --- Duplicate check against the sessions channel (ID: 1471572261638246574) ---
+        sessions_channel = bot.get_channel(1471572261638246574)
+        if sessions_channel:
+            if await is_duplicate_username(sessions_channel, username):
+                logger.info(f"Duplicate username '{username}' found in sessions channel — skipping.")
+                return
+        else:
+            logger.warning("Sessions channel not found, skipping duplicate check.")
+
         playtime, balance, valid = await fetch_donutsmp_stats(username)
         head_url = f"https://mc-heads.net/body/{username}/500"
         
